@@ -13,7 +13,7 @@ from helpers import (
     normalize_tweet_text,
     save_last_update_id,
 )
-from telegram_api import get_me, get_updates, send_message
+from telegram_api import get_me, get_updates, send_message, send_photo, send_video
 from x_client import get_tweet_payload
 
 
@@ -71,10 +71,18 @@ def process_message(message: dict[str, Any]) -> None:
         seen_ids.add(tweet_id)
 
         try:
-            tweet = get_tweet_payload(tweet_id=tweet_id, translate_to="fa")
+            tweet, photos, videos = get_tweet_payload(
+                tweet_id=tweet_id, translate_to="fa"
+            )
+            photo_urls = photos or []
+            video_urls = videos or []
         except requests.RequestException as exc:
             print(f"Failed to fetch tweet {tweet_id}: {exc}")
             tweet = None
+
+        # print(photo_urls)
+        # print(video_urls)
+        replied_once = False
 
         if not tweet:
             send_message(
@@ -100,6 +108,26 @@ def process_message(message: dict[str, Any]) -> None:
                 chat_id=chat_id,
                 text=part,
                 reply_to_message_id=message_id if index == 0 else None,
+            )
+            replied_once = True
+
+        for index, photo_url in enumerate(photo_urls):
+            send_photo(
+                chat_id=chat_id,
+                photo_url=photo_url,
+                reply_to_message_id=(
+                    message_id if not replied_once and index == 0 else None
+                ),
+            )
+            replied_once = True
+
+        for index, video_url in enumerate(video_urls):
+            send_video(
+                chat_id=chat_id,
+                video_url=video_url,
+                reply_to_message_id=(
+                    message_id if not replied_once and index == 0 else None
+                ),
             )
 
 

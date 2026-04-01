@@ -41,7 +41,6 @@ def send_message(
         "disable_web_page_preview": disable_web_page_preview,
     }
 
-    # Simple old-style reply fields for compatibility
     if reply_to_message_id is not None:
         payload["reply_to_message_id"] = reply_to_message_id
 
@@ -65,3 +64,53 @@ def get_me() -> dict[str, Any]:
         raise RuntimeError(f"getMe failed: {data}")
 
     return data.get("result", {})
+
+
+def send_photo(
+    chat_id: int,
+    photo_url: str,
+    caption: str | None = None,
+    reply_to_message_id: int | None = None,
+) -> None:
+    payload: dict[str, Any] = {
+        "chat_id": chat_id,
+        "photo": photo_url,
+    }
+
+    if caption:
+        payload["caption"] = caption
+
+    if reply_to_message_id is not None:
+        payload["reply_to_message_id"] = reply_to_message_id
+
+    response = requests.post(
+        f"{TELEGRAM_API_BASE}/sendPhoto",
+        data=payload,
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+
+
+def send_video(
+    chat_id: int,
+    video_url: str,
+    caption: str | None = None,
+    reply_to_message_id: int | None = None,
+) -> None:
+    payload: dict[str, Any] = {
+        "chat_id": chat_id,
+        "video": video_url,
+    }
+
+    if caption:
+        payload["caption"] = caption
+
+    if reply_to_message_id is not None:
+        payload["reply_to_message_id"] = reply_to_message_id
+
+    response = requests.post(
+        f"{TELEGRAM_API_BASE}/sendVideo",
+        data=payload,
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()

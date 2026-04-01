@@ -23,8 +23,17 @@ def get_tweet_payload(
         return None
 
     tweet = data.get("tweet")
-    
+
     if not isinstance(tweet, dict):
         return None
 
-    return tweet
+    # print(tweet)
+    media = tweet.get("media") or {}
+
+    photos = media.get("photos") or []
+    videos = media.get("videos") or []
+
+    photos = [item["url"] for item in photos if item.get("url")]
+    videos = [item["url"] for item in videos if item.get("url")]
+
+    return tweet, photos, videos
