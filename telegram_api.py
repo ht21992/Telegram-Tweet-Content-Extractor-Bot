@@ -77,6 +77,10 @@ def send_photo(
         "photo": photo_url,
     }
 
+    if not photo_url:
+        print("Skipping: Photo URL is empty")
+        return
+
     if caption:
         payload["caption"] = caption
 
@@ -101,6 +105,10 @@ def send_video(
         "chat_id": chat_id,
         "video": video_url,
     }
+
+    if not video_url:
+        print("Skipping: Video URL is empty")
+        return
 
     if caption:
         payload["caption"] = caption

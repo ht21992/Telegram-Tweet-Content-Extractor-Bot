@@ -112,23 +112,33 @@ def process_message(message: dict[str, Any]) -> None:
             replied_once = True
 
         for index, photo_url in enumerate(photo_urls):
-            send_photo(
-                chat_id=chat_id,
-                photo_url=photo_url,
-                reply_to_message_id=(
-                    message_id if not replied_once and index == 0 else None
-                ),
-            )
-            replied_once = True
+            try:
+                send_photo(
+                    chat_id=chat_id,
+                    photo_url=photo_url,
+                    reply_to_message_id=(
+                        message_id if not replied_once and index == 0 else None
+                    ),
+                )
+                replied_once = True
+            except requests.RequestException as e:
+                # Log the error, but don't let it crash the whole function
+                print(f"Failed to send photo {photo_url}: {e}")
+                continue
 
         for index, video_url in enumerate(video_urls):
-            send_video(
-                chat_id=chat_id,
-                video_url=video_url,
-                reply_to_message_id=(
-                    message_id if not replied_once and index == 0 else None
-                ),
-            )
+            try:
+                send_video(
+                    chat_id=chat_id,
+                    video_url=video_url,
+                    reply_to_message_id=(
+                        message_id if not replied_once and index == 0 else None
+                    ),
+                )
+                replied_once = True
+            except requests.RequestException as e:
+                print(f"Failed to send video {video_url}: {e}")
+                continue
 
 
 def process_update(update: dict[str, Any]) -> None:
