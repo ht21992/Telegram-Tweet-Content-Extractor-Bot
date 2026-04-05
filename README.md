@@ -1,81 +1,108 @@
-# Telegram Tweet Text Extractor Bot
 
-A Telegram bot that extracts and translates tweet text from Twitter/X links shared in chats. The bot fetches tweet content, translates non-Persian tweets to Persian, and sends back the text along with any attached media (photos and videos).
+# Telegram Tweet & Instagram Content Extractor Bot
+
+A Telegram bot that extracts and translates tweet text from Twitter/X links and downloads media from Instagram posts/reels shared in chats.
 
 ## Features
 
-- **Automatic Tweet Extraction**: Detects Twitter/X links in Telegram messages and extracts tweet content
-- **Translation Support**: Translates tweets to Persian (Farsi) if the original language is not Persian
-- **Media Support**: Downloads and forwards tweet photos and videos
-- **Multi-chat Support**: Works in private chats, groups, and supergroups
-- **Error Handling**: Graceful handling of network errors and invalid tweets
+* **Automatic Link Detection**: Detects Twitter/X and Instagram links in messages
+* **Tweet Extraction & Translation**: Extracts tweet text and translates non-Persian tweets to Persian
+* **X Media Support**: Sends tweet photos and videos (grouped when possible)
+* **Instagram Support**: Downloads and sends images/videos from public Instagram posts and reels (including carousels)
+* **Album Support**: Sends multiple media as Telegram albums (gallery)
+* **Multi-chat Support**: Works in private chats, groups, and supergroups
+* **Progress Feedback**: Shows processing status (downloading, preparing, sending)
+* **Error Handling**: Graceful handling of invalid links and network issues
 
 ## Prerequisites
 
-- Python 3.8+
-- A Telegram Bot Token (obtained from [@BotFather](https://t.me/botfather))
+* Python 3.8+
+* A Telegram Bot Token (from [@BotFather](https://t.me/botfather))
 
 ## Installation
 
-1. Clone or download this repository
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   ```
-3. Activate the virtual environment:
-   - Windows: `venv\Scripts\activate`
-   - macOS/Linux: `source venv/bin/activate`
-4. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+git clone <repo>
+cd <repo>
+
+python -m venv venv
+```
+
+Activate:
+
+* Windows: `venv\Scripts\activate`
+* macOS/Linux: `source venv/bin/activate`
+
+Install:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Configuration
 
-1. Create a `.env` file in the project root
-2. Add your Telegram bot token:
-   ```
-   TELEGRAM_BOT_TOKEN=your_bot_token_here
-   ```
-3. Optionally, adjust the polling interval (default is 1 second):
-   ```
-   POLL_INTERVAL=1
-   ```
+Create `.env`:
+
+```
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+POLL_INTERVAL=1
+```
 
 ## Usage
 
-Run the bot:
 ```bash
 python main.py
 ```
 
-The bot will start polling for updates and process messages containing Twitter/X links.
-
 ## How It Works
 
-1. The bot monitors Telegram chats for new messages
-2. When a message containing a Twitter/X link is detected, it extracts the tweet ID
-3. Fetches tweet data using the fxtwitter API
-4. If the tweet is not in Persian, translates it to Persian
-5. Sends the tweet text (original + translation if applicable) back to the chat
-6. Downloads and forwards any attached photos and videos
+### Twitter/X
 
-## Supported Link Formats
+1. Detects X links in messages
+2. Extracts tweet ID
+3. Fetches tweet content via fxtwitter
+4. Translates to Persian if needed
+5. Sends:
 
-The bot recognizes various Twitter/X URL formats:
-- `https://twitter.com/username/status/tweet_id`
-- `https://x.com/username/status/tweet_id`
-- Shortened URLs and other variations
+   * text (or caption)
+   * media (single or album)
+
+### Instagram
+
+1. Detects Instagram post/reel links
+2. Downloads media using Instaloader
+3. Extracts caption (if available)
+4. Sends:
+
+   * single media OR
+   * full carousel as Telegram album
+
+## Supported Links
+
+### Twitter/X
+
+* `https://twitter.com/.../status/...`
+* `https://x.com/.../status/...`
+
+### Instagram
+
+* `https://instagram.com/p/...`
+* `https://instagram.com/reel/...`
+* `https://instagram.com/reels/...`
 
 ## Dependencies
 
-- `python-dotenv`: For environment variable management
-- `requests`: For HTTP requests (install via pip if not included)
+* `requests`
+* `python-dotenv`
+* `instaloader`
 
-## Project Structure
+## Limitations
 
-- `main.py`: Main bot logic and message processing
-- `telegram_api.py`: Telegram API wrapper functions
-- `x_client.py`: Twitter/X API client using fxtwitter
-- `helpers.py`: Utility functions for text processing and tweet ID extraction
-- `constants.py`: Configuration constants and environment loading
+- **Instagram Private Content**: Only public posts and reels are supported. Private accounts cannot be accessed.
+- **Instagram Stability**: Media extraction relies on unofficial methods (Instaloader) and may break if Instagram changes its structure.
+- **Telegram Album Limits**: Media groups support **2–10 items only**. Larger carousels are split into multiple albums.
+- **Caption Length Limit**: Telegram captions are limited to **1024 characters**. Longer text (e.g., translated tweets) is sent as separate messages.
+- **Rate Limits**: Heavy usage may trigger rate limits from Telegram, Instagram, or X sources.
+- **X API Dependency**: Tweet data relies on third-party services (e.g., fxtwitter), which may occasionally fail or be unavailable.
+- **Media Availability**: Some X or Instagram media may be unavailable due to regional restrictions or deletion.
+- **Processing Time**: Instagram media downloads (especially videos or large carousels) may take a few seconds.

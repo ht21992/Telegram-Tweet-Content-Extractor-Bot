@@ -36,8 +36,8 @@ def send_message(
     text: str,
     reply_to_message_id: int | None = None,
     disable_web_page_preview: bool = True,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
+) -> dict:
+    payload = {
         "chat_id": chat_id,
         "text": text,
         "disable_web_page_preview": disable_web_page_preview,
@@ -243,18 +243,6 @@ def send_media_group_files(
                 pass
 
 
-def send_chat_action(chat_id: int, action: str) -> None:
-    response = requests.post(
-        f"{TELEGRAM_API_BASE}/sendChatAction",
-        data={
-            "chat_id": chat_id,
-            "action": action,
-        },
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-
-
 def edit_message_text(chat_id: int, message_id: int, text: str) -> None:
     response = requests.post(
         f"{TELEGRAM_API_BASE}/editMessageText",
@@ -276,5 +264,64 @@ def delete_message(chat_id: int, message_id: int) -> None:
             "message_id": message_id,
         },
         timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+
+
+def send_chat_action(chat_id: int, action: str) -> None:
+    response = requests.post(
+        f"{TELEGRAM_API_BASE}/sendChatAction",
+        data={
+            "chat_id": chat_id,
+            "action": action,
+        },
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+
+
+def send_media_group_urls(
+    chat_id: int,
+    media_items: list[tuple[str, str]],
+    caption: str | None = None,
+    reply_to_message_id: int | None = None,
+) -> None:
+    if len(media_items) < 2:
+        raise ValueError("send_media_group_urls requires at least 2 media items")
+
+    media_payload: list[dict[str, Any]] = []
+
+    for index, (media_type, media_url) in enumerate(media_items):
+        if media_type == "photo":
+            item: dict[str, Any] = {
+                "type": "photo",
+                "media": media_url,
+            }
+        elif media_type == "video":
+            item = {
+                "type": "video",
+                "media": media_url,
+                "supports_streaming": True,
+            }
+        else:
+            raise ValueError(f"Unsupported media type: {media_type}")
+
+        if index == 0 and caption:
+            item["caption"] = caption[:1024]
+
+        media_payload.append(item)
+
+    data: dict[str, Any] = {
+        "chat_id": chat_id,
+        "media": json.dumps(media_payload),
+    }
+
+    if reply_to_message_id is not None:
+        data["reply_to_message_id"] = reply_to_message_id
+
+    response = requests.post(
+        f"{TELEGRAM_API_BASE}/sendMediaGroup",
+        data=data,
+        timeout=REQUEST_TIMEOUT * 3,
     )
     response.raise_for_status()
