@@ -16,7 +16,14 @@ TELEGRAM_API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 OFFSET_FILE = "offset.txt"
 
 ALLOWED_CHAT_TYPES = {"private", "group", "supergroup"}
-
+INSTAGRAM_FIX_BASES = [
+    host.strip().rstrip("/")
+    for host in os.getenv(
+        "INSTAGRAM_FIX_BASES",
+        "https://instagram7.com,https://toinstagram.com,https://www.ddinstagram.com",
+    ).split(",")
+    if host.strip()
+]
 FXTWITTER_API_BASE = "https://api.fxtwitter.com"
 REQUEST_TIMEOUT = 30
 LONG_POLL_TIMEOUT = 30

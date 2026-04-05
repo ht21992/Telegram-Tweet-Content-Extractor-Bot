@@ -8,12 +8,27 @@ import requests
 from constants import ALLOWED_CHAT_TYPES, OFFSET_FILE, POLL_INTERVAL
 from helpers import (
     chunk_text,
+    extract_instagram_shortcodes,
     extract_tweet_ids,
     load_last_update_id,
     normalize_tweet_text,
     save_last_update_id,
 )
-from telegram_api import get_me, get_updates, send_message, send_photo, send_video
+
+from instagram_client import cleanup_file, download_instagram_media
+from telegram_api import (
+    get_me,
+    get_updates,
+    send_message,
+    send_photo,
+    send_video,
+    send_photo_file,
+    send_video_file,
+    send_media_group_files,
+    edit_message_text,
+    send_chat_action,
+    delete_message
+)
 from x_client import get_tweet_payload
 
 
@@ -43,6 +58,15 @@ def build_reply_text(tweet: dict[str, Any]) -> str | None:
     return f"Original:\n\n{original_text}\n\nترجمه فارسی:\n\n{translated_text}"
 
 
+def chunk_media_items(
+    media_items: list[tuple[str, str]],
+    chunk_size: int = 10,
+) -> list[list[tuple[str, str]]]:
+    return [
+        media_items[i : i + chunk_size] for i in range(0, len(media_items), chunk_size)
+    ]
+
+
 def process_message(message: dict[str, Any]) -> None:
     chat = message.get("chat", {})
     chat_id = chat.get("id")
@@ -59,30 +83,174 @@ def process_message(message: dict[str, Any]) -> None:
     if not text:
         return
 
-    tweet_ids = extract_tweet_ids(text)
-    if not tweet_ids:
-        return
+    # -----------------------------
+    # Instagram handling
+    # -----------------------------
+    instagram_codes = extract_instagram_shortcodes(text)
+    seen_instagram_codes: set[str] = set()
 
-    seen_ids: set[str] = set()
-
-    for tweet_id in tweet_ids:
-        if tweet_id in seen_ids:
+    for shortcode in instagram_codes:
+        if shortcode in seen_instagram_codes:
             continue
-        seen_ids.add(tweet_id)
+        seen_instagram_codes.add(shortcode)
+
+        status_message_id: int | None = None
+        media_items: list[tuple[str, str]] = []
+        caption: str | None = None
 
         try:
-            tweet, photos, videos = get_tweet_payload(
-                tweet_id=tweet_id, translate_to="fa"
+            status_response = send_message(
+                chat_id=chat_id,
+                text="Processing Instagram link...",
+                reply_to_message_id=message_id,
             )
-            photo_urls = photos or []
-            video_urls = videos or []
+            status_message_id = status_response["result"]["message_id"]
+
+            edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message_id,
+                text="Downloading media...",
+            )
+            send_chat_action(chat_id, "upload_document")
+
+            media_items, caption = download_instagram_media(shortcode)
+
+            if not media_items:
+                edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message_id,
+                    text="Could not fetch that Instagram media.",
+                )
+                continue
+
+            edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message_id,
+                text="Preparing media...",
+            )
+
+            if len(media_items) == 1:
+                media_type, media_path = media_items[0]
+
+                if media_type == "photo":
+                    send_chat_action(chat_id, "upload_photo")
+                elif media_type == "video":
+                    send_chat_action(chat_id, "upload_video")
+
+                edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message_id,
+                    text="Sending media...",
+                )
+
+                if media_type == "photo":
+                    send_photo_file(
+                        chat_id=chat_id,
+                        file_path=media_path,
+                        reply_to_message_id=message_id,
+                        caption=caption,
+                    )
+                elif media_type == "video":
+                    send_video_file(
+                        chat_id=chat_id,
+                        file_path=media_path,
+                        reply_to_message_id=message_id,
+                        caption=caption,
+                    )
+                else:
+                    edit_message_text(
+                        chat_id=chat_id,
+                        message_id=status_message_id,
+                        text="Unsupported Instagram media type.",
+                    )
+                    continue
+
+            else:
+                edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message_id,
+                    text="Preparing album...",
+                )
+
+                media_chunks = chunk_media_items(media_items, chunk_size=10)
+
+                for chunk_index, media_chunk in enumerate(media_chunks):
+                    send_chat_action(chat_id, "upload_document")
+
+                    send_media_group_files(
+                        chat_id=chat_id,
+                        media_items=media_chunk,
+                        caption=caption if chunk_index == 0 else None,
+                        reply_to_message_id=message_id if chunk_index == 0 else None,
+                    )
+
+                    if chunk_index < len(media_chunks) - 1:
+                        edit_message_text(
+                            chat_id=chat_id,
+                            message_id=status_message_id,
+                            text=f"Sending album part {chunk_index + 2}/{len(media_chunks)}...",
+                        )
+
+            try:
+                delete_message(chat_id, status_message_id)
+            except Exception:
+                edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message_id,
+                    text="Done.",
+                )
+
+        except Exception as exc:
+            print(f"Failed to fetch instagram media {shortcode}: {exc}")
+
+            if status_message_id is not None:
+                try:
+                    edit_message_text(
+                        chat_id=chat_id,
+                        message_id=status_message_id,
+                        text="Instagram media was found, but it could not be sent.",
+                    )
+                except Exception:
+                    pass
+            else:
+                send_message(
+                    chat_id=chat_id,
+                    text="Instagram media was found, but it could not be sent.",
+                    reply_to_message_id=message_id,
+                )
+
+        finally:
+            for _, media_path in media_items:
+                cleanup_file(media_path)
+
+    # -----------------------------
+    # X / Twitter handling
+    # -----------------------------
+    tweet_ids = extract_tweet_ids(text)
+    seen_tweet_ids: set[str] = set()
+
+    for tweet_id in tweet_ids:
+        if tweet_id in seen_tweet_ids:
+            continue
+        seen_tweet_ids.add(tweet_id)
+
+        try:
+            result = get_tweet_payload(tweet_id=tweet_id, translate_to="fa")
+
+            if isinstance(result, tuple):
+                tweet = result[0]
+                photos = result[1] if len(result) > 1 else []
+                videos = result[2] if len(result) > 2 else []
+            else:
+                tweet = result
+                photos = []
+                videos = []
+
         except requests.RequestException as exc:
             print(f"Failed to fetch tweet {tweet_id}: {exc}")
             tweet = None
-
-        # print(photo_urls)
-        # print(video_urls)
-        replied_once = False
+            photos = []
+            videos = []
 
         if not tweet:
             send_message(
@@ -93,25 +261,20 @@ def process_message(message: dict[str, Any]) -> None:
             continue
 
         reply_text = build_reply_text(tweet)
-        if not reply_text:
-            send_message(
-                chat_id=chat_id,
-                text="Tweet text was empty.",
-                reply_to_message_id=message_id,
-            )
-            continue
+        replied_once = False
 
-        parts = chunk_text(reply_text)
+        if reply_text:
+            parts = chunk_text(reply_text)
 
-        for index, part in enumerate(parts):
-            send_message(
-                chat_id=chat_id,
-                text=part,
-                reply_to_message_id=message_id if index == 0 else None,
-            )
-            replied_once = True
+            for index, part in enumerate(parts):
+                send_message(
+                    chat_id=chat_id,
+                    text=part,
+                    reply_to_message_id=message_id if index == 0 else None,
+                )
+                replied_once = True
 
-        for index, photo_url in enumerate(photo_urls):
+        for index, photo_url in enumerate(photos):
             try:
                 send_photo(
                     chat_id=chat_id,
@@ -121,12 +284,10 @@ def process_message(message: dict[str, Any]) -> None:
                     ),
                 )
                 replied_once = True
-            except requests.RequestException as e:
-                # Log the error, but don't let it crash the whole function
-                print(f"Failed to send photo {photo_url}: {e}")
-                continue
+            except requests.RequestException as exc:
+                print(f"Failed to send tweet photo {photo_url}: {exc}")
 
-        for index, video_url in enumerate(video_urls):
+        for index, video_url in enumerate(videos):
             try:
                 send_video(
                     chat_id=chat_id,
@@ -136,9 +297,15 @@ def process_message(message: dict[str, Any]) -> None:
                     ),
                 )
                 replied_once = True
-            except requests.RequestException as e:
-                print(f"Failed to send video {video_url}: {e}")
-                continue
+            except requests.RequestException as exc:
+                print(f"Failed to send tweet video {video_url}: {exc}")
+
+        if not replied_once:
+            send_message(
+                chat_id=chat_id,
+                text="Tweet content was empty.",
+                reply_to_message_id=message_id,
+            )
 
 
 def process_update(update: dict[str, Any]) -> None:

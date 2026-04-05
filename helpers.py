@@ -10,6 +10,17 @@ TWEET_LINK_RE = re.compile(
     re.IGNORECASE,
 )
 
+INSTAGRAM_LINK_RE = re.compile(
+    r"https?://(?:www\.)?instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)",
+    re.IGNORECASE,
+)
+
+
+def extract_instagram_shortcodes(text: str) -> list[str]:
+    if not text:
+        return []
+    return INSTAGRAM_LINK_RE.findall(text)
+
 
 def extract_tweet_ids(text: str) -> list[str]:
     if not text:
