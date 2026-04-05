@@ -106,3 +106,4 @@ python main.py
 - **X API Dependency**: Tweet data relies on third-party services (e.g., fxtwitter), which may occasionally fail or be unavailable.
 - **Media Availability**: Some X or Instagram media may be unavailable due to regional restrictions or deletion.
 - **Processing Time**: Instagram media downloads (especially videos or large carousels) may take a few seconds.
+- **Environment Differences (Windows vs Server)**: Instagram scraping may work on local machines (e.g., Windows with a residential IP) but fail on cloud/VPS servers (e.g., Ubuntu) due to stricter rate limits and IP reputation checks. Using a logged-in Instagram session is recommended for server deployments.
