@@ -43,20 +43,24 @@ def should_process_chat(chat_type: str | None) -> bool:
 
 def build_reply_text(tweet: dict[str, Any]) -> str | None:
     original_text = normalize_tweet_text(tweet.get("text") or "")
+
     if not original_text:
         return None
 
     lang = (tweet.get("lang") or "").strip().lower()
     translation = tweet.get("translation") or {}
-
+    author = tweet.get("author", {})
+    author_name = author.get("name", "")
+    author_profile = author.get("url", "")
+    author_info = f"\n\n— {author_name}\n\nProfile:{author_profile}"
     translated_text = ""
     if isinstance(translation, dict):
         translated_text = normalize_tweet_text(translation.get("text") or "")
 
     if lang == "fa" or not translated_text:
-        return original_text
+        return original_text + author_info
 
-    return f"Original:\n\n{original_text}\n\nترجمه فارسی:\n\n{translated_text}"
+    return f"Original:\n\n{original_text}\n\nترجمه فارسی:\n\n{translated_text}{author_info}"
 
 
 def chunk_media_items(
@@ -445,7 +449,9 @@ def process_message(message: dict[str, Any]) -> None:
                         chat_id=chat_id,
                         media_items=media_chunk,
                         caption=None,
-                        reply_to_message_id=message_id if chunk_index == 0 and not reply_text else None,
+                        reply_to_message_id=(
+                            message_id if chunk_index == 0 and not reply_text else None
+                        ),
                     )
 
             try:
